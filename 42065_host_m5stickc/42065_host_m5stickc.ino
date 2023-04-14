@@ -2,11 +2,15 @@
 #include <M5StickC.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include <ArduinoQueue.h>
 
+#define CMD_NOP 0
 #define CMD_GOFOWARD 1
 #define CMD_GOBACK 2
 #define CMD_TURNRIGHT 3
 #define CMD_TURNLEFT 4
+
+ArduinoQueue<int> queue(16); // 適当なサイズ
 
 /* Power Function */
 PowerFunctions pf(9, 0,true /* <= Enable debug mode on pin 13? */); 
@@ -110,7 +114,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
     M5.Lcd.print(data[i]);
     M5.Lcd.print(" ");
   }
-  goForward(100);
+  queue.enqueue(CMD_GOFOWARD);
 }
 void setup() {
   M5.begin();
@@ -143,27 +147,20 @@ void setup() {
   esp_now_register_recv_cb(OnDataRecv);
 }
 void loop() {
+  int receive_cmd = 0;
+
   M5.update();
   // ボタンを押したら送信
-  if ( M5.BtnA.wasPressed() ) {
-    uint8_t data[2] = {123, 234};
-    esp_err_t result = esp_now_send(slave.peer_addr, data, sizeof(data));
-    Serial.print("Send Status: ");
-    if (result == ESP_OK) {
-      Serial.println("Success");
-    } else if (result == ESP_ERR_ESPNOW_NOT_INIT) {
-      Serial.println("ESPNOW not Init.");
-    } else if (result == ESP_ERR_ESPNOW_ARG) {
-      Serial.println("Invalid Argument");
-    } else if (result == ESP_ERR_ESPNOW_INTERNAL) {
-      Serial.println("Internal Error");
-    } else if (result == ESP_ERR_ESPNOW_NO_MEM) {
-      Serial.println("ESP_ERR_ESPNOW_NO_MEM");
-    } else if (result == ESP_ERR_ESPNOW_NOT_FOUND) {
-      Serial.println("Peer not found.");
-    } else {
-      Serial.println("Not sure what happened");
+  if(!queue.isEmpty()){
+    receive_cmd = queue.dequeue();
+    switch(receive_cmd)
+    {
+      case CMD_GOFOWARD:
+        goForward(100);
+        break;
     }
   }
+
+
   delay(1);
 }
