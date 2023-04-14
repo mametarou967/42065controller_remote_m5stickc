@@ -1,6 +1,48 @@
 #include <M5StickC.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include "Wire.h"
+
+// JOYSTICK
+#define JOY_ADDR 0x38
+#define JOY_INPUT_NOP 0
+#define JOY_INPUT_UP 1
+#define JOY_INPUT_DOWN 2
+#define JOY_INPUT_RIGHT 3
+#define JOY_INPUT_LEFT 4
+#define JOY_INPUT_OVER_VALUE 80
+#define JOY_INPUT_UNDER_VALUE 45
+
+void joystick_begin()
+{
+  Wire.begin(0,26);
+}
+
+int joystick_read()
+{
+  int8_t x_data = 0;
+  int8_t y_data = 0;
+  int8_t button_data = 1; // button data default 1
+  int joy_input = JOY_INPUT_NOP;
+
+  Wire.beginTransmission(JOY_ADDR);
+  Wire.write(0x02); 
+  Wire.endTransmission();
+  Wire.requestFrom(JOY_ADDR, 3);
+  if (Wire.available()) {
+    x_data = Wire.read();
+    y_data = Wire.read();
+    button_data = Wire.read();
+  }
+
+  if((abs(x_data) <= JOY_INPUT_UNDER_VALUE) && (y_data >= JOY_INPUT_OVER_VALUE)) joy_input = JOY_INPUT_UP;
+  else if((abs(x_data) <= JOY_INPUT_UNDER_VALUE) && (y_data <= -JOY_INPUT_OVER_VALUE)) joy_input = JOY_INPUT_DOWN;
+  else if((x_data >= JOY_INPUT_OVER_VALUE) && (abs(y_data) <= JOY_INPUT_UNDER_VALUE)) joy_input = JOY_INPUT_RIGHT;
+  else if((x_data <= -JOY_INPUT_OVER_VALUE) && (abs(y_data) <= JOY_INPUT_UNDER_VALUE)) joy_input = JOY_INPUT_LEFT;
+
+  return joy_input;
+}
+
 esp_now_peer_info_t slave;
 // 送信コールバック
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -71,29 +113,24 @@ void setup() {
   // ESP-NOWコールバック登録
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);
+
+  joystick_begin();
 }
+
+int joystick_input = JOY_INPUT_NOP;
+int last_joystick_input = JOY_INPUT_NOP;
+
 void loop() {
   M5.update();
-  // ボタンを押したら送信
-  if ( M5.BtnA.wasPressed() ) {
-    uint8_t data[2] = {123, 234};
+  
+  joystick_input = joystick_read();
+  if(joystick_input != last_joystick_input)
+  {
+    M5.Lcd.setCursor(1, 30, 2);
+    M5.Lcd.printf("joystick_input:%d\n", joystick_input);
+    uint8_t data[2] = {123, joystick_input};
     esp_err_t result = esp_now_send(slave.peer_addr, data, sizeof(data));
-    Serial.print("Send Status: ");
-    if (result == ESP_OK) {
-      Serial.println("Success");
-    } else if (result == ESP_ERR_ESPNOW_NOT_INIT) {
-      Serial.println("ESPNOW not Init.");
-    } else if (result == ESP_ERR_ESPNOW_ARG) {
-      Serial.println("Invalid Argument");
-    } else if (result == ESP_ERR_ESPNOW_INTERNAL) {
-      Serial.println("Internal Error");
-    } else if (result == ESP_ERR_ESPNOW_NO_MEM) {
-      Serial.println("ESP_ERR_ESPNOW_NO_MEM");
-    } else if (result == ESP_ERR_ESPNOW_NOT_FOUND) {
-      Serial.println("Peer not found.");
-    } else {
-      Serial.println("Not sure what happened");
-    }
+    last_joystick_input = joystick_input;
   }
-  delay(1);
+  delay(50);
 }

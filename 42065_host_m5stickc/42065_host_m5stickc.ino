@@ -10,67 +10,37 @@
 #define CMD_TURNRIGHT 3
 #define CMD_TURNLEFT 4
 
+#define MODE_STOP 0
+#define MODE_GOFOWARD 1
+#define MODE_GOBACK 2
+#define MODE_TURNRIGHT 3
+#define MODE_TURNLEFT 4
+
 ArduinoQueue<int> queue(16); // 適当なサイズ
 
 /* Power Function */
 PowerFunctions pf(9, 0,true /* <= Enable debug mode on pin 13? */); 
 int j=0;
 
-void goForward(uint16_t time){
+void stop()
+{
+  pf.combo_pwm(PWM_FLT,PWM_FLT); 
+}
+
+void goForward(){
   pf.combo_pwm(PWM_FWD4, PWM_REV4);
-  delay(time);
-  pf.combo_pwm(PWM_FLT,PWM_FLT);
 }
 
-void goBackward(uint16_t time){
+void goBackward(){
   pf.combo_pwm(PWM_REV4,PWM_FWD4);
-  delay(time);
-  pf.combo_pwm(PWM_FLT,PWM_FLT);
 }
 
-void turnRight30Degree(uint16_t time){
+void turnRight(){
   pf.combo_pwm(PWM_FWD4, PWM_FWD4);
-  delay(time);
-  pf.combo_pwm(PWM_FLT,PWM_FLT);  
 }
 
-void turnLeft30Degree(uint16_t time){
+void turnLeft(){
   pf.combo_pwm(PWM_REV4, PWM_REV4);
-  delay(time);
-  pf.combo_pwm(PWM_FLT,PWM_FLT);  
-}
-
-void step(uint8_t output, uint8_t pwm,  uint16_t time) {
-  pf.single_pwm(output, pwm);
-  delay(time);
-  pf.single_pwm(output, PWM_BRK);
-  delay(30);
-  pf.single_pwm(output, PWM_FLT);
-}
-
-
-/////////////
-void zigZag(uint16_t msTime){
-  unsigned long startTime=millis();
-  const int delayf=2;
-  const int zigRange=2;
-  do {
-    // TO TEST THE TURNING MECHANINCS
-    // Zig to left
-    pf.combo_pwm(PWM_FWD4, PWM_REV2);
-    delay(100*delayf*zigRange);
-    goForward(50*delayf);
-
-    // Center again
-    pf.combo_pwm(PWM_FWD2, PWM_REV4);
-    delay(100*delayf*zigRange);
-    
-    // Zig to right
-    pf.combo_pwm(PWM_FWD2, PWM_REV4);
-    delay(100*delayf*zigRange);   
-
-    goForward(50* delayf);
-  }while ((millis()-startTime) < msTime);
 }
 
 // esp-now
@@ -114,7 +84,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
     M5.Lcd.print(data[i]);
     M5.Lcd.print(" ");
   }
-  queue.enqueue(CMD_GOFOWARD);
+  queue.enqueue(data[1]);
 }
 void setup() {
   M5.begin();
@@ -146,6 +116,9 @@ void setup() {
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);
 }
+
+int mode = MODE_STOP;
+int last_mode = MODE_STOP;
 void loop() {
   int receive_cmd = 0;
 
@@ -153,14 +126,32 @@ void loop() {
   // ボタンを押したら送信
   if(!queue.isEmpty()){
     receive_cmd = queue.dequeue();
+    Serial.printf("receive_cmd = %d\n",receive_cmd);
     switch(receive_cmd)
     {
-      case CMD_GOFOWARD:
-        goForward(100);
-        break;
+      case CMD_NOP: mode = MODE_STOP; break;
+      case CMD_GOFOWARD:  mode = MODE_GOFOWARD; break;
+      case CMD_GOBACK:  mode = MODE_GOBACK; break;
+      case CMD_TURNRIGHT:  mode = MODE_TURNRIGHT; break;
+      case CMD_TURNLEFT:  mode = MODE_TURNLEFT; break;
+      default: mode = MODE_STOP; break;
     }
+    Serial.printf("mode = %d last_mode = %d\n",mode,last_mode);
   }
 
-
+  if(last_mode != mode)
+  {
+    switch(mode)
+    {
+      case MODE_STOP:  stop(); break;
+      case MODE_GOFOWARD:  goForward(); break;
+      case MODE_GOBACK:  goBackward(); break;
+      case MODE_TURNRIGHT:  turnRight(); break;
+      case MODE_TURNLEFT:  turnLeft(); break;
+      default:  stop(); break;
+    }
+    // 前回モードの更新
+    last_mode = mode;
+  }
   delay(1);
 }
