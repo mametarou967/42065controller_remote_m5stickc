@@ -5,11 +5,13 @@
 
 // JOYSTICK
 #define JOY_ADDR 0x38
-#define JOY_INPUT_NOP 0
-#define JOY_INPUT_UP 1
-#define JOY_INPUT_DOWN 2
-#define JOY_INPUT_RIGHT 3
-#define JOY_INPUT_LEFT 4
+
+#define MODE_STOP 0
+#define MODE_GOFOWARD 1
+#define MODE_GOBACK 2
+#define MODE_TURNRIGHT 3
+#define MODE_TURNLEFT 4
+
 #define JOY_INPUT_OVER_VALUE 80
 #define JOY_INPUT_UNDER_VALUE 45
 
@@ -23,7 +25,7 @@ int joystick_read()
   int8_t x_data = 0;
   int8_t y_data = 0;
   int8_t button_data = 1; // button data default 1
-  int joy_input = JOY_INPUT_NOP;
+  int joy_input = MODE_STOP;
 
   Wire.beginTransmission(JOY_ADDR);
   Wire.write(0x02); 
@@ -35,10 +37,10 @@ int joystick_read()
     button_data = Wire.read();
   }
 
-  if((abs(x_data) <= JOY_INPUT_UNDER_VALUE) && (y_data >= JOY_INPUT_OVER_VALUE)) joy_input = JOY_INPUT_UP;
-  else if((abs(x_data) <= JOY_INPUT_UNDER_VALUE) && (y_data <= -JOY_INPUT_OVER_VALUE)) joy_input = JOY_INPUT_DOWN;
-  else if((x_data >= JOY_INPUT_OVER_VALUE) && (abs(y_data) <= JOY_INPUT_UNDER_VALUE)) joy_input = JOY_INPUT_RIGHT;
-  else if((x_data <= -JOY_INPUT_OVER_VALUE) && (abs(y_data) <= JOY_INPUT_UNDER_VALUE)) joy_input = JOY_INPUT_LEFT;
+  if((abs(x_data) <= JOY_INPUT_UNDER_VALUE) && (y_data >= JOY_INPUT_OVER_VALUE)) joy_input = MODE_GOFOWARD;
+  else if((abs(x_data) <= JOY_INPUT_UNDER_VALUE) && (y_data <= -JOY_INPUT_OVER_VALUE)) joy_input = MODE_GOBACK;
+  else if((x_data >= JOY_INPUT_OVER_VALUE) && (abs(y_data) <= JOY_INPUT_UNDER_VALUE)) joy_input = MODE_TURNRIGHT;
+  else if((x_data <= -JOY_INPUT_OVER_VALUE) && (abs(y_data) <= JOY_INPUT_UNDER_VALUE)) joy_input = MODE_TURNLEFT;
 
   return joy_input;
 }
@@ -54,12 +56,12 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("Last Packet Send Status: ");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   // 画面にも描画
-  M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setCursor(0, 0);
-  M5.Lcd.print("Last Packet Sent to: \n  ");
-  M5.Lcd.println(macStr);
-  M5.Lcd.print("Last Packet Send Status: \n  ");
-  M5.Lcd.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  // M5.Lcd.fillScreen(BLACK);
+  // M5.Lcd.setCursor(0, 0);
+  // M5.Lcd.print("Last Packet Sent to: \n  ");
+  // M5.Lcd.println(macStr);
+  // M5.Lcd.print("Last Packet Send Status: \n  ");
+  // M5.Lcd.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 // 受信コールバック
 void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
@@ -74,30 +76,108 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
   }
   Serial.println("");
   // 画面にも描画
+  // M5.Lcd.fillScreen(BLACK);
+  // M5.Lcd.setCursor(0, 0);
+  // M5.Lcd.print("Last Packet Recv from: \n  ");
+  // M5.Lcd.println(macStr);
+  // M5.Lcd.printf("Last Packet Recv Data(%d): \n  ", data_len);
+  // for ( int i = 0 ; i < data_len ; i++ ) {
+    // M5.Lcd.print(data[i]);
+    // M5.Lcd.print(" ");
+  // }
+}
+
+int menuIndex = 0;
+
+int GetIndex()
+{
+  return menuIndex;
+}
+
+void UpdateIndex()
+{
+  menuIndex++;
+  if(menuIndex > 3)
+  {
+    menuIndex = 0;
+  }
+  DispScreen();
+}
+
+int joystick_input = MODE_STOP;
+
+int GetJoyStick()
+{
+  return joystick_input;
+}
+
+void UpdateJoyStick(int input)
+{
+  
+  // 値の更新
+  joystick_input = input;
+  // JoyStick情報送信
+  uint8_t data[2] = {123, GetJoyStick()};
+  esp_err_t result = esp_now_send(slave.peer_addr, data, sizeof(data));
+  // 表示の更新
+  DispScreen();
+}
+
+void DispScreen()
+{
+  int menuIndex = GetIndex();
+  int joyStick = GetJoyStick();
+
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setCursor(0, 0);
-  M5.Lcd.print("Last Packet Recv from: \n  ");
-  M5.Lcd.println(macStr);
-  M5.Lcd.printf("Last Packet Recv Data(%d): \n  ", data_len);
-  for ( int i = 0 ; i < data_len ; i++ ) {
-    M5.Lcd.print(data[i]);
-    M5.Lcd.print(" ");
-  }
+  M5.Lcd.println("<>Menu");
+  M5.Lcd.println("------------");
+
+  if(menuIndex == 0) M5.Lcd.print(">");
+  else M5.Lcd.print(" ");
+  M5.Lcd.println(" STOP");
+  
+  if(menuIndex == 1) M5.Lcd.print(">");
+  else M5.Lcd.print(" ");
+  M5.Lcd.println(" GO_STOP");
+  
+  if(menuIndex == 2) M5.Lcd.print(">");
+  else M5.Lcd.print(" ");
+  M5.Lcd.println(" SQUARE");
+  
+  if(menuIndex == 3) M5.Lcd.print(">");
+  else M5.Lcd.print(" ");
+  M5.Lcd.println(" ZIG_ZAG");
+
+  M5.Lcd.println("");
+
+  M5.Lcd.println("<>JoyStat");
+  M5.Lcd.println("------------");
+
+  M5.Lcd.print("  ");
+  if(joyStick == MODE_STOP)  M5.Lcd.println("NOP");
+  else if(joyStick == MODE_GOFOWARD) M5.Lcd.println("UP");
+  else if(joyStick == MODE_GOBACK) M5.Lcd.println("DOWN");
+  else if(joyStick == MODE_TURNRIGHT) M5.Lcd.println("RIGHT");
+  else if(joyStick == MODE_TURNLEFT) M5.Lcd.println("LEFT");
 }
+
 void setup() {
   M5.begin();
   M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setRotation(3);
-  M5.Lcd.print("ESP-NOW Test\n");
+  M5.Lcd.setRotation(0);
+  M5.Lcd.setTextFont(2);
+  DispScreen();
+  // M5.Lcd.print("ESP-NOW Test\n");
   // ESP-NOW初期化
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   if (esp_now_init() == ESP_OK) {
     Serial.println("ESPNow Init Success");
-    M5.Lcd.print("ESPNow Init Success\n");
+    // M5.Lcd.print("ESPNow Init Success\n");
   } else {
     Serial.println("ESPNow Init Failed");
-    M5.Lcd.print("ESPNow Init Failed\n");
+    // M5.Lcd.print("ESPNow Init Failed\n");
     ESP.restart();
   }
   // マルチキャスト用Slave登録
@@ -117,20 +197,23 @@ void setup() {
   joystick_begin();
 }
 
-int joystick_input = JOY_INPUT_NOP;
-int last_joystick_input = JOY_INPUT_NOP;
 
 void loop() {
+  int read_joystick = 0;
   M5.update();
   
-  joystick_input = joystick_read();
-  if(joystick_input != last_joystick_input)
+  // joystickの監視
+  read_joystick = joystick_read();
+  if(read_joystick != GetJoyStick())
   {
-    M5.Lcd.setCursor(1, 30, 2);
-    M5.Lcd.printf("joystick_input:%d\n", joystick_input);
-    uint8_t data[2] = {123, joystick_input};
-    esp_err_t result = esp_now_send(slave.peer_addr, data, sizeof(data));
-    last_joystick_input = joystick_input;
+    UpdateJoyStick(read_joystick);
   }
+
+  // サイドボタンの入力監視
+  if ( M5.BtnB.wasPressed() )
+  {
+    UpdateIndex();
+  }
+
   delay(50);
 }
