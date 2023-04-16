@@ -26,8 +26,16 @@
 #define STATE2_MODE_GO_STOP 2
 #define STATE3_MODE_GO_STOP 3
 
+#define STATE1_MODE_SQUARE 1
+#define STATE2_MODE_SQUARE 2
+#define STATE3_MODE_SQUARE 3
+#define STATE4_MODE_SQUARE 4
+
 int state_mode_go_stop = STATE1_MODE_GO_STOP;
 long mills_mode_go_stop = 0;
+int state_mode_square = STATE1_MODE_SQUARE;
+long mills_mode_square = 0;
+int count_mode_squre = 0;
 
 ArduinoQueue<int> queue(16); // 適当なサイズ
 
@@ -133,7 +141,10 @@ void modeUpdate(int receiveCommand)
         mode = MODE_GO_STOP;
         state_mode_go_stop = STATE1_MODE_GO_STOP;
         break;
-      case CMD_SQUARE:  mode = MODE_SQUARE; break;
+      case CMD_SQUARE:  
+        mode = MODE_SQUARE;
+        state_mode_square = STATE1_MODE_SQUARE;
+        break;
       case CMD_ZIG_ZAG:  mode = MODE_ZIG_ZAG; break;
       default: mode = MODE_STOP; break;
     }
@@ -223,6 +234,55 @@ void loop() {
           queue.enqueue(CMD_NOP);
           break;
       }
+      break;
+    case MODE_SQUARE:
+      switch(state_mode_square)
+      {
+        case STATE1_MODE_SQUARE:
+          count_mode_squre = 0;
+          state_mode_square++;
+          break;
+        case STATE2_MODE_SQUARE:
+          mills_mode_square = millis();
+          goForward();
+          state_mode_square++;
+          break;
+        case STATE3_MODE_SQUARE:
+          if(millis() - mills_mode_square > 2000)
+          {
+            mills_mode_square = millis();
+            turnRight();
+            state_mode_square++;
+          }
+          else
+          {
+            goForward();
+          }
+          break;
+        case STATE4_MODE_SQUARE:
+          if(millis() - mills_mode_square > 2000)
+          {
+            // 1セット終了
+            count_mode_squre++;
+            if(count_mode_squre > 3)
+            {
+              // 終了
+              queue.enqueue(CMD_NOP);
+            } 
+            else
+            {           
+              mills_mode_square = millis();
+              goForward();
+              state_mode_square = STATE3_MODE_SQUARE;
+            }
+          }
+          else
+          {
+            turnRight();
+          }
+          break;
+      }
+      break;
     default:  if(modeUpdateFlg){stop();} break;
   }
 
