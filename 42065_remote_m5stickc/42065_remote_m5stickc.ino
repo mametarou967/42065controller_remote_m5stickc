@@ -11,6 +11,9 @@
 #define MODE_GOBACK 2
 #define MODE_TURNRIGHT 3
 #define MODE_TURNLEFT 4
+#define MODE_GO_STOP 5
+#define MODE_SQUARE 6
+#define MODE_ZIG_ZAG 7
 
 #define JOY_INPUT_OVER_VALUE 80
 #define JOY_INPUT_UNDER_VALUE 45
@@ -104,6 +107,20 @@ void UpdateIndex()
   DispScreen();
 }
 
+void SelectIndex()
+{
+  int selectedCommand = MODE_STOP;
+  
+  if(menuIndex == 0) selectedCommand = MODE_STOP;
+  else if(menuIndex == 1) selectedCommand = MODE_GO_STOP;
+  else if(menuIndex == 2) selectedCommand = MODE_SQUARE;
+  else if(menuIndex == 3) selectedCommand = MODE_ZIG_ZAG;
+  // JoyStick情報送信
+  CommandSend(selectedCommand);
+  // 表示の更新
+  DispScreen();
+}
+
 int joystick_input = MODE_STOP;
 
 int GetJoyStick()
@@ -113,20 +130,31 @@ int GetJoyStick()
 
 void UpdateJoyStick(int input)
 {
-  
   // 値の更新
   joystick_input = input;
   // JoyStick情報送信
-  uint8_t data[2] = {123, GetJoyStick()};
-  esp_err_t result = esp_now_send(slave.peer_addr, data, sizeof(data));
+  CommandSend(joystick_input);
   // 表示の更新
   DispScreen();
+}
+
+uint8_t sentCommand = MODE_STOP;
+
+void CommandSend(uint8_t command)
+{
+  uint8_t data[2] = {123, GetJoyStick()};
+  esp_err_t result = esp_now_send(slave.peer_addr, data, sizeof(data));
+  sentCommand = command;
+}
+
+int GetCommandSend()
+{
+  return sentCommand;
 }
 
 void DispScreen()
 {
   int menuIndex = GetIndex();
-  int joyStick = GetJoyStick();
 
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setCursor(0, 0);
@@ -151,15 +179,19 @@ void DispScreen()
 
   M5.Lcd.println("");
 
-  M5.Lcd.println("<>JoyStat");
+  M5.Lcd.println("<>Command");
   M5.Lcd.println("------------");
 
+  int command = GetCommandSend();
   M5.Lcd.print("  ");
-  if(joyStick == MODE_STOP)  M5.Lcd.println("NOP");
-  else if(joyStick == MODE_GOFOWARD) M5.Lcd.println("UP");
-  else if(joyStick == MODE_GOBACK) M5.Lcd.println("DOWN");
-  else if(joyStick == MODE_TURNRIGHT) M5.Lcd.println("RIGHT");
-  else if(joyStick == MODE_TURNLEFT) M5.Lcd.println("LEFT");
+  if(command == MODE_STOP)  M5.Lcd.println("STOP");
+  else if(command == MODE_GOFOWARD) M5.Lcd.println("UP");
+  else if(command == MODE_GOBACK) M5.Lcd.println("DOWN");
+  else if(command == MODE_TURNRIGHT) M5.Lcd.println("RIGHT");
+  else if(command == MODE_TURNLEFT) M5.Lcd.println("LEFT");
+  else if(command == MODE_GO_STOP) M5.Lcd.println("GO_STOP");
+  else if(command == MODE_SQUARE) M5.Lcd.println("SQUARE");
+  else if(command == MODE_ZIG_ZAG) M5.Lcd.println("ZIG_ZAG");
 }
 
 void setup() {
@@ -212,7 +244,15 @@ void loop() {
   // サイドボタンの入力監視
   if ( M5.BtnB.wasPressed() )
   {
+    // メニュー選択更新
     UpdateIndex();
+  }
+
+  // メインボタンの入力監視
+  if ( M5.BtnA.wasPressed() )
+  {
+    // メニュー選択
+    SelectIndex();
   }
 
   delay(50);

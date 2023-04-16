@@ -15,6 +15,9 @@
 #define MODE_GOBACK 2
 #define MODE_TURNRIGHT 3
 #define MODE_TURNLEFT 4
+#define MODE_GO_STOP 5
+#define MODE_SQUARE 6
+#define MODE_ZIG_ZAG 7
 
 ArduinoQueue<int> queue(16); // 適当なサイズ
 
