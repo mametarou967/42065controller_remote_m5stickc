@@ -142,7 +142,7 @@ uint8_t sentCommand = MODE_STOP;
 
 void CommandSend(uint8_t command)
 {
-  uint8_t data[2] = {123, GetJoyStick()};
+  uint8_t data[2] = {123, command};
   esp_err_t result = esp_now_send(slave.peer_addr, data, sizeof(data));
   sentCommand = command;
 }

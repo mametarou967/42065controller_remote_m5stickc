@@ -9,6 +9,9 @@
 #define CMD_GOBACK 2
 #define CMD_TURNRIGHT 3
 #define CMD_TURNLEFT 4
+#define CMD_GO_STOP 5
+#define CMD_SQUARE 6
+#define CMD_ZIG_ZAG 7
 
 #define MODE_STOP 0
 #define MODE_GOFOWARD 1
@@ -18,6 +21,13 @@
 #define MODE_GO_STOP 5
 #define MODE_SQUARE 6
 #define MODE_ZIG_ZAG 7
+
+#define STATE1_MODE_GO_STOP 1
+#define STATE2_MODE_GO_STOP 2
+#define STATE3_MODE_GO_STOP 3
+
+int state_mode_go_stop = STATE1_MODE_GO_STOP;
+long mills_mode_go_stop = 0;
 
 ArduinoQueue<int> queue(16); // 適当なサイズ
 
@@ -58,12 +68,12 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("Last Packet Send Status: ");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   // 画面にも描画
-  M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setCursor(0, 0);
-  M5.Lcd.print("Last Packet Sent to: \n  ");
-  M5.Lcd.println(macStr);
-  M5.Lcd.print("Last Packet Send Status: \n  ");
-  M5.Lcd.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  // M5.Lcd.fillScreen(BLACK);
+  // M5.Lcd.setCursor(0, 0);
+  // M5.Lcd.print("Last Packet Sent to: \n  ");
+  // M5.Lcd.println(macStr);
+  // M5.Lcd.print("Last Packet Send Status: \n  ");
+  // M5.Lcd.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 // 受信コールバック
 void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
@@ -78,31 +88,73 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
   }
   Serial.println("");
   // 画面にも描画
-  M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setCursor(0, 0);
-  M5.Lcd.print("Last Packet Recv from: \n  ");
-  M5.Lcd.println(macStr);
-  M5.Lcd.printf("Last Packet Recv Data(%d): \n  ", data_len);
+  // M5.Lcd.fillScreen(BLACK);
+  // M5.Lcd.setCursor(0, 0);
+  // M5.Lcd.print("Last Packet Recv from: \n  ");
+  // M5.Lcd.println(macStr);
+  // M5.Lcd.printf("Last Packet Recv Data(%d): \n  ", data_len);
   for ( int i = 0 ; i < data_len ; i++ ) {
-    M5.Lcd.print(data[i]);
-    M5.Lcd.print(" ");
+    // M5.Lcd.print(data[i]);
+    // M5.Lcd.print(" ");
   }
   queue.enqueue(data[1]);
 }
+
+int mode = MODE_STOP;
+
+void DispScreen()
+{
+  M5.Lcd.fillScreen(BLACK);
+  M5.Lcd.setCursor(0, 0);
+  M5.Lcd.println("<>Mode");
+  M5.Lcd.println("--------------------------");
+  
+  M5.Lcd.print("  ");
+  if(mode == MODE_STOP)  M5.Lcd.println("STOP");
+  else if(mode == MODE_GOFOWARD) M5.Lcd.println("UP");
+  else if(mode == MODE_GOBACK) M5.Lcd.println("DOWN");
+  else if(mode == MODE_TURNRIGHT) M5.Lcd.println("RIGHT");
+  else if(mode == MODE_TURNLEFT) M5.Lcd.println("LEFT");
+  else if(mode == MODE_GO_STOP) M5.Lcd.println("GO_STOP");
+  else if(mode == MODE_SQUARE) M5.Lcd.println("SQUARE");
+  else if(mode == MODE_ZIG_ZAG) M5.Lcd.println("ZIG_ZAG");
+}
+
+void modeUpdate(int receiveCommand)
+{
+    switch(receiveCommand)
+    {
+      case CMD_NOP: mode = MODE_STOP; break;
+      case CMD_GOFOWARD:  mode = MODE_GOFOWARD; break;
+      case CMD_GOBACK:  mode = MODE_GOBACK; break;
+      case CMD_TURNRIGHT:  mode = MODE_TURNRIGHT; break;
+      case CMD_TURNLEFT:  mode = MODE_TURNLEFT; break;
+      case CMD_GO_STOP:  
+        mode = MODE_GO_STOP;
+        state_mode_go_stop = STATE1_MODE_GO_STOP;
+        break;
+      case CMD_SQUARE:  mode = MODE_SQUARE; break;
+      case CMD_ZIG_ZAG:  mode = MODE_ZIG_ZAG; break;
+      default: mode = MODE_STOP; break;
+    }
+    DispScreen();
+}
+
 void setup() {
   M5.begin();
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setRotation(3);
-  M5.Lcd.print("ESP-NOW Test\n");
+  M5.Lcd.setTextFont(2);
+  // M5.Lcd.print("ESP-NOW Test\n");
   // ESP-NOW初期化
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   if (esp_now_init() == ESP_OK) {
     Serial.println("ESPNow Init Success");
-    M5.Lcd.print("ESPNow Init Success\n");
+    // M5.Lcd.print("ESPNow Init Success\n");
   } else {
     Serial.println("ESPNow Init Failed");
-    M5.Lcd.print("ESPNow Init Failed\n");
+    // M5.Lcd.print("ESPNow Init Failed\n");
     ESP.restart();
   }
   // マルチキャスト用Slave登録
@@ -118,43 +170,61 @@ void setup() {
   // ESP-NOWコールバック登録
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);
+
+  DispScreen();
 }
 
-int mode = MODE_STOP;
-int last_mode = MODE_STOP;
+
+
+
 void loop() {
   int receive_cmd = 0;
+  bool modeUpdateFlg;
+
+  modeUpdateFlg = false;
 
   M5.update();
-  // ボタンを押したら送信
+  // コマンドを受信したら
   if(!queue.isEmpty()){
     receive_cmd = queue.dequeue();
     Serial.printf("receive_cmd = %d\n",receive_cmd);
-    switch(receive_cmd)
-    {
-      case CMD_NOP: mode = MODE_STOP; break;
-      case CMD_GOFOWARD:  mode = MODE_GOFOWARD; break;
-      case CMD_GOBACK:  mode = MODE_GOBACK; break;
-      case CMD_TURNRIGHT:  mode = MODE_TURNRIGHT; break;
-      case CMD_TURNLEFT:  mode = MODE_TURNLEFT; break;
-      default: mode = MODE_STOP; break;
-    }
-    Serial.printf("mode = %d last_mode = %d\n",mode,last_mode);
+    Serial.printf("mode = %d\n",mode);
+    modeUpdate(receive_cmd);
+    modeUpdateFlg = true;
   }
 
-  if(last_mode != mode)
+  switch(mode)
   {
-    switch(mode)
-    {
-      case MODE_STOP:  stop(); break;
-      case MODE_GOFOWARD:  goForward(); break;
-      case MODE_GOBACK:  goBackward(); break;
-      case MODE_TURNRIGHT:  turnRight(); break;
-      case MODE_TURNLEFT:  turnLeft(); break;
-      default:  stop(); break;
-    }
-    // 前回モードの更新
-    last_mode = mode;
+    case MODE_STOP:  if(modeUpdateFlg){stop();} break;
+    case MODE_GOFOWARD:  if(modeUpdateFlg){goForward();} break;
+    case MODE_GOBACK:  if(modeUpdateFlg){goBackward();} break;
+    case MODE_TURNRIGHT:  if(modeUpdateFlg){turnRight();} break;
+    case MODE_TURNLEFT:  if(modeUpdateFlg){turnLeft();} break;
+    case MODE_GO_STOP:
+      switch(state_mode_go_stop)
+      {
+        case STATE1_MODE_GO_STOP:
+          mills_mode_go_stop = millis();
+          goForward();
+          state_mode_go_stop++;
+          break;
+        case STATE2_MODE_GO_STOP:
+          if(millis() - mills_mode_go_stop > 2000)
+          {
+            stop();
+            state_mode_go_stop++;
+          }
+          else
+          {
+            goForward();
+          }
+          break;
+        case STATE3_MODE_GO_STOP:
+          queue.enqueue(CMD_NOP);
+          break;
+      }
+    default:  if(modeUpdateFlg){stop();} break;
   }
+
   delay(1);
 }
