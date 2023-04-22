@@ -384,14 +384,12 @@ void loop() {
           break;
         case STATE2_MODE_SQUARE:
           mills_mode_square = millis();
-          goForward();
           state_mode_square++;
           break;
         case STATE3_MODE_SQUARE:
           if(millis() - mills_mode_square > 500)
           {
             mills_mode_square = millis();
-            turnRight();
             state_mode_square++;
           }
           else
@@ -412,7 +410,6 @@ void loop() {
             else
             {           
               mills_mode_square = millis();
-              goForward();
               state_mode_square = STATE3_MODE_SQUARE;
             }
           }
