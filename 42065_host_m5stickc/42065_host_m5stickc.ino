@@ -45,22 +45,27 @@ int j=0;
 
 void stop()
 {
+  Serial.println("stop");
   pf.combo_pwm(PWM_FLT,PWM_FLT); 
 }
 
 void goForward(){
+  Serial.println("goForward");
   pf.combo_pwm(PWM_FWD4, PWM_REV4);
 }
 
 void goBackward(){
+  Serial.println("goBackward");
   pf.combo_pwm(PWM_REV4,PWM_FWD4);
 }
 
 void turnRight(){
+  Serial.println("turnRight");
   pf.combo_pwm(PWM_FWD4, PWM_FWD4);
 }
 
 void turnLeft(){
+  Serial.println("turnLeft");
   pf.combo_pwm(PWM_REV4, PWM_REV4);
 }
 
@@ -207,10 +212,10 @@ void loop() {
   switch(mode)
   {
     case MODE_STOP:  if(modeUpdateFlg){stop();} break;
-    case MODE_GOFOWARD:  if(modeUpdateFlg){goForward();} break;
-    case MODE_GOBACK:  if(modeUpdateFlg){goBackward();} break;
-    case MODE_TURNRIGHT:  if(modeUpdateFlg){turnRight();} break;
-    case MODE_TURNLEFT:  if(modeUpdateFlg){turnLeft();} break;
+    case MODE_GOFOWARD:  goForward(); break;
+    case MODE_GOBACK:  goBackward(); break;
+    case MODE_TURNRIGHT:  turnRight(); break;
+    case MODE_TURNLEFT:  turnLeft(); break;
     case MODE_GO_STOP:
       switch(state_mode_go_stop)
       {
