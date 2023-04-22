@@ -433,15 +433,12 @@ void loop() {
           break;
         case STATE2_MODE_ZIGZAG:
           mills_mode_zigzag = millis();
-          goForward();
           state_mode_zigzag++;
           break;
         case STATE3_MODE_ZIGZAG:
           if(millis() - mills_mode_zigzag > 500)
           {
             mills_mode_zigzag = millis();
-            if(right_mode_zigzag) turnRight();
-            else turnLeft();
             state_mode_zigzag++;
           }
           else
@@ -454,7 +451,7 @@ void loop() {
           {
             // 1セット終了
             count_mode_zigzag++;
-            if(count_mode_zigzag > 3)
+            if(count_mode_zigzag > 4)
             {
               // 終了
               state_mode_zigzag = STATE1_MODE_ZIGZAG;
@@ -467,7 +464,6 @@ void loop() {
               else right_mode_zigzag = true;
 
               mills_mode_zigzag = millis();
-              goForward();
               state_mode_zigzag = STATE3_MODE_ZIGZAG;
             }
           }
