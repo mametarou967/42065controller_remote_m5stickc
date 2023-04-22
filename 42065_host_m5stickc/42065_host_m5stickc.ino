@@ -31,11 +31,20 @@
 #define STATE3_MODE_SQUARE 3
 #define STATE4_MODE_SQUARE 4
 
+#define STATE1_MODE_ZIGZAG 1
+#define STATE2_MODE_ZIGZAG 2
+#define STATE3_MODE_ZIGZAG 3
+#define STATE4_MODE_ZIGZAG 4
+
 int state_mode_go_stop = STATE1_MODE_GO_STOP;
 long mills_mode_go_stop = 0;
 int state_mode_square = STATE1_MODE_SQUARE;
 long mills_mode_square = 0;
 int count_mode_squre = 0;
+int state_mode_zigzag = STATE1_MODE_ZIGZAG;
+long mills_mode_zigzag = 0;
+int count_mode_zigzag = 0;
+bool right_mode_zigzag = false;
 
 // TOF
 #define VL53L0X_REG_IDENTIFICATION_MODEL_ID         0xc0
@@ -414,6 +423,68 @@ void loop() {
           break;
       }
       break;
+    case MODE_ZIG_ZAG:
+      switch(state_mode_zigzag)
+      {
+        case STATE1_MODE_ZIGZAG:
+          count_mode_zigzag = 0;
+          state_mode_zigzag++;
+          right_mode_zigzag = true;
+          break;
+        case STATE2_MODE_ZIGZAG:
+          mills_mode_zigzag = millis();
+          goForward();
+          state_mode_zigzag++;
+          break;
+        case STATE3_MODE_ZIGZAG:
+          if(millis() - mills_mode_zigzag > 500)
+          {
+            mills_mode_zigzag = millis();
+            if(right_mode_zigzag) turnRight();
+            else turnLeft();
+            state_mode_zigzag++;
+          }
+          else
+          {
+            goForward();
+          }
+          break;
+        case STATE4_MODE_ZIGZAG:
+          if(millis() - mills_mode_zigzag > 475)
+          {
+            // 1セット終了
+            count_mode_zigzag++;
+            if(count_mode_zigzag > 3)
+            {
+              // 終了
+              state_mode_zigzag = STATE1_MODE_ZIGZAG;
+              queue.enqueue(CMD_NOP);
+            } 
+            else
+            {
+              // 左右入替
+              if(right_mode_zigzag) right_mode_zigzag = false;
+              else right_mode_zigzag = true;
+
+              mills_mode_zigzag = millis();
+              goForward();
+              state_mode_zigzag = STATE3_MODE_ZIGZAG;
+            }
+          }
+          else
+          {
+            if(right_mode_zigzag) turnRight();
+            else turnLeft();
+          }
+          break;
+      }
+      break;
+      /*
+      
+int state_mode_zigzag = STATE1_MODE_ZIGZAG;
+long mills_mode_zigzag = 0;
+int count_mode_zigzag = 0;
+*/
     default:  if(modeUpdateFlg){stop();} break;
   }
 
